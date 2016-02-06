@@ -1,0 +1,8 @@
+[package]
+name = "rust-face-rec"
+version = "0.1.0"
+authors = ["Will <will.pittman@comcast.net>"]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+image = "0.6.1"
