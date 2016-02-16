@@ -2,7 +2,7 @@ use image;
 use image::{ImageBuffer, GrayImage, RgbImage, GenericImage};
 use std::f64;
 
-mod statslib;
+pub mod statslib;
 
 pub type Histogram = Vec<f64>;
 
@@ -42,13 +42,13 @@ impl Recognizer {
         let mut best_fit_value: f64 = f64::MAX;
         let mut label: usize = 0;
 
-        let mut lbp = Recognizer::olbp(&img);
-        let src_hist = Recognizer::calc_image_hist(&mut lbp, 8, 8);
+        let mut lbp = olbp(&img);
+        let src_hist = calc_image_hist(&mut lbp, 8, 8);
 
         // Find closest face match
         for face in &self.trained_data {
             for hist in &face.histograms {
-                let value = Recognizer::compare_hist(&src_hist, &hist);
+                let value = compare_hist(&src_hist, &hist);
                 if value < best_fit_value {
                     best_fit_value = value;
                     label = face.label.clone();
@@ -73,9 +73,9 @@ impl Recognizer {
 
         // Calculate a histogram for each image
         for i in 0..images.len() {
-            let mut img = Recognizer::olbp(&images[i]);
+            let mut img = olbp(&images[i]);
             // TODO: Make cell_x, cell_y global or resettable
-            let img_hist = Recognizer::calc_image_hist(&mut img, 8, 8);
+            let img_hist = calc_image_hist(&mut img, 8, 8);
             let id = img_labels[i].clone();
             if id == self.trained_data.len() {
                 self.trained_data.push(TrainedFace::new(id));
@@ -89,7 +89,7 @@ impl Recognizer {
             let mut cmpr_values = Vec::new();
             for i in 0..n {
                 for j in (i+1)..n {
-                    let value = Recognizer::compare_hist(&face.histograms[i], &face.histograms[j]);
+                    let value = compare_hist(&face.histograms[i], &face.histograms[j]);
                     cmpr_values.push(value);
                 }
             }
@@ -109,8 +109,8 @@ impl Recognizer {
     pub fn load(&self, file: &Path) {
         unimplemented!();
         let img = image::open(&Path::new("tom.jpg")).unwrap();
-        let gray_img = Recognizer::convert_gray_scale(&img.to_rgb());
-        let lbp = Recognizer::olbp(&gray_img);
+        let gray_img = convert_gray_scale(&img.to_rgb());
+        let lbp = olbp(&gray_img);
 
         let ref mut fout = File::create(&Path::new("tom.png")).unwrap();
 
@@ -121,82 +121,86 @@ impl Recognizer {
         unimplemented!();
     }
 */
-    fn olbp(img: &GrayImage) -> GrayImage {
 
-        let (cols, rows) = img.dimensions();
+}
 
-        let mut imgbuff = ImageBuffer::new(cols-2, rows-2);
+pub fn olbp(img: &GrayImage) -> GrayImage {
 
-        for x in 1..cols-1 {
-            for y in 1..rows-1 {
-                let center = img.get_pixel(x, y);
-                let mut code: u8 = 0;
-                code |= if img.get_pixel(x-1, y-1)[0] >= center[0] {1 << 7} else {0 << 7};
-                code |= if img.get_pixel(x-1, y)[0]   >= center[0] {1 << 6} else {0 << 6};
-                code |= if img.get_pixel(x-1, y+1)[0] >= center[0] {1 << 5} else {0 << 5};
-                code |= if img.get_pixel(x, y+1)[0]   >= center[0] {1 << 4} else {0 << 4};
-                code |= if img.get_pixel(x+1, y+1)[0] >= center[0] {1 << 3} else {0 << 3};
-                code |= if img.get_pixel(x+1, y)[0]   >= center[0] {1 << 2} else {0 << 2};
-                code |= if img.get_pixel(x+1, y-1)[0] >= center[0] {1 << 1} else {0 << 1};
-                code |= if img.get_pixel(x, y-1)[0]   >= center[0] {1 << 0} else {0 << 0};
-                imgbuff.put_pixel(x-1, y-1, image::Luma([code]));
-            }
+    let (cols, rows) = img.dimensions();
+
+    let mut imgbuff = ImageBuffer::new(cols-2, rows-2);
+
+    for x in 1..cols-1 {
+        for y in 1..rows-1 {
+            let center = img.get_pixel(x, y);
+            let mut code: u8 = 0;
+            code |= if img.get_pixel(x-1, y-1)[0] >= center[0] {1 << 7} else {0 << 7};
+            code |= if img.get_pixel(x-1, y)[0]   >= center[0] {1 << 6} else {0 << 6};
+            code |= if img.get_pixel(x-1, y+1)[0] >= center[0] {1 << 5} else {0 << 5};
+            code |= if img.get_pixel(x, y+1)[0]   >= center[0] {1 << 4} else {0 << 4};
+            code |= if img.get_pixel(x+1, y+1)[0] >= center[0] {1 << 3} else {0 << 3};
+            code |= if img.get_pixel(x+1, y)[0]   >= center[0] {1 << 2} else {0 << 2};
+            code |= if img.get_pixel(x+1, y-1)[0] >= center[0] {1 << 1} else {0 << 1};
+            code |= if img.get_pixel(x, y-1)[0]   >= center[0] {1 << 0} else {0 << 0};
+            imgbuff.put_pixel(x-1, y-1, image::Luma([code]));
         }
-        imgbuff
+    }
+    imgbuff
+}
+
+fn calc_cell_hist(img: &GrayImage) -> Histogram {
+    let (cols, rows) = img.dimensions();
+    let img_vec = img.to_vec();
+    let mut hist: Histogram = vec![0.0; 256];
+
+    for x in 0..cols as usize {
+        for y in 0..rows as usize {
+            let index = img_vec[y*cols as usize + x] as usize;
+            hist[index] += 1.0;
+        }
     }
 
-    fn calc_cell_hist(img: &GrayImage) -> Histogram {
-        let (cols, rows) = img.dimensions();
-        let img_vec = img.to_vec();
-        let mut hist: Histogram = vec![0.0; 256];
+    //let norm_hist: Histogram = statslib::normalize(hist);
 
-        for x in 0..cols as usize {
-            for y in 0..rows as usize {
-                let index = img_vec[y*cols as usize + x] as usize;
-                hist[index] += 1.0;
-            }
+    //norm_hist
+    hist
+}
+
+pub fn calc_image_hist(img: &mut GrayImage, cell_x: u32, cell_y: u32) -> Histogram {
+    let (cols, rows) = img.dimensions();
+
+    let cell_width = cols / cell_x;
+    let cell_height = rows / cell_y;
+
+    let mut image_hist: Histogram = Vec::new();
+
+    for x in 0..cell_x {
+        for y in 0..cell_y {
+            // TODO: Fiture out what 'a does !!!
+            let cell = img.sub_image::<'a>(x*cell_width, y*cell_height, cell_width, cell_height).to_image();
+            let mut cell_hist = calc_cell_hist(&cell);
+            image_hist.append(&mut cell_hist);
         }
+    }
+    image_hist = statslib::normalize(image_hist);
+    image_hist
+}
 
-        let norm_hist: Histogram = statslib::normalize(hist);
-
-        norm_hist
+// use Chisquare alternative
+pub fn compare_hist(hist_1: &Histogram, hist_2: &Histogram) -> f64 {
+    if hist_1.len() != hist_2.len() {
+        panic!("Histograms are not comparable.");
     }
 
-    fn calc_image_hist(img: &mut GrayImage, cell_x: u32, cell_y: u32) -> Histogram {
-        let (cols, rows) = img.dimensions();
+    let mut result = 0.0;
 
-        let cell_width = cols / cell_x;
-        let cell_height = rows / cell_y;
-
-        let mut image_hist: Histogram = Vec::new();
-
-        for x in 0..cell_x {
-            for y in 0..cell_y {
-                // TODO: Fiture out what 'a does !!!
-                let cell = img.sub_image::<'a>(x*cell_width, y*cell_height, cell_width, cell_height).to_image();
-                let mut cell_hist = Recognizer::calc_cell_hist(&cell);
-                image_hist.append(&mut cell_hist);
-            }
-        }
-        image_hist
+    for i in 0..hist_1.len() {
+        let diff = hist_1[i] - hist_2[i];
+        let sum = hist_1[i] + hist_2[i];
+        let value = if sum > 0.0 {2.0 * (diff*diff) / sum} else {0.0};
+        result += value;
     }
-
-    pub fn compare_hist(hist_1: &Histogram, hist_2: &Histogram) -> f64 {
-        if hist_1.len() != hist_2.len() {
-            panic!("Histograms are not comparable.");
-        }
-
-        let mut result = 0.0;
-
-        for i in 0..hist_1.len() {
-            let diff = hist_1[i] - hist_2[i];
-            let sum = hist_1[i] + hist_2[i];
-            let value = if sum > 0.0 {2.0 * (diff*diff) / sum} else {0.0};
-            result += value;
-        }
-        result
-    }
-
+    result
 }
 
 pub fn convert_gray_scale(img: &RgbImage) -> GrayImage {
